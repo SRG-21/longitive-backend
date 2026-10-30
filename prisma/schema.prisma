@@ -1,0 +1,750 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum Role {
+  ADMIN
+  PRACTITIONER
+  USER
+  FAMILY
+}
+
+enum TenantPlan {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+enum ConditionType {
+  CHRONIC
+  ACUTE
+  ALLERGY
+}
+
+enum Severity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum TreatmentType {
+  MEDICATION
+  SURGERY
+  THERAPY
+}
+
+enum DataSource {
+  MANUAL
+  OCR
+}
+
+enum TestStatus {
+  NORMAL
+  LOW
+  HIGH
+  CRITICAL
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+enum IncidentSeverity {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum InventoryItemType {
+  MED
+  SUPPLEMENT
+}
+
+enum InventoryAction {
+  CONSUMED
+  RESTOCKED
+}
+
+enum NotificationChannel {
+  PUSH
+  EMAIL
+  SMS
+}
+
+enum TrackerStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum TrackerCadence {
+  DAILY
+  WEEKLY
+  CUSTOM
+}
+
+enum TrackerFieldType {
+  CHECKBOX
+  NUMBER
+  SHORT_TEXT
+  LONG_TEXT
+  RATING
+  SINGLE_SELECT
+  MULTI_SELECT
+  DATE
+  TIME
+  DURATION
+  PHOTO
+  FORMULA
+}
+
+// ==================== CORE MODELS ====================
+
+model Tenant {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  slug      String       @unique
+  // Not @unique: MongoDB's unique index rejects multiple documents that are
+  // both missing this optional field (unlike Postgres, which exempts NULLs).
+  // Most tenants never set a custom domain, so a DB-level unique constraint
+  // would break tenant creation the moment a second one omits it. Enforce
+  // uniqueness in TenantService when a domain is actually provided.
+  domain    String?
+  branding  Json?
+  plan      TenantPlan   @default(FREE)
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  users User[]
+
+  @@map("tenants")
+}
+
+model User {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId         String    @db.ObjectId
+  email            String
+  phone            String?
+  name             String
+  dob              DateTime?
+  gender           String?
+  bloodGroup       String?
+  photo            String?
+  role             Role      @default(USER)
+  passwordHash     String?
+  oauthProvider    String?
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean   @default(false)
+  goals            Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id])
+  emergencyContacts EmergencyContact[]
+  medicalConditions MedicalCondition[]
+  familyHistory     FamilyHistory[]
+  treatments        Treatment[]
+  lifestyleProfile  LifestyleProfile?
+  bodyCompositions  BodyComposition[]
+  labReports        LabReport[]
+  aiChatSessions    AiChatSession[]
+  aiInsights        AiInsight[]
+  healthIncidents   HealthIncident[]
+  dietPlans         DietPlan[]
+  supplementPlans   SupplementPlan[]
+  hydrationPlans    HydrationPlan[]
+  dailyCharts       DailyChart[]
+  exercisePlans     ExercisePlan[]
+  exerciseLogs      ExerciseLog[]
+  dailyChecklists   DailyChecklist[]
+  progressStreak    ProgressStreak?
+  inventoryItems    InventoryItem[]
+  sleepLogs         SleepLog[]
+  moodLogs          MoodLog[]
+  notificationPrefs NotificationPreference[]
+  reminders         ScheduledReminder[]
+  journeyTrackers   JourneyTracker[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+model EmergencyContact {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String @db.ObjectId
+  tenantId     String @db.ObjectId
+  name         String
+  phone        String
+  relationship String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("emergency_contacts")
+}
+
+model MedicalCondition {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String        @db.ObjectId
+  tenantId      String        @db.ObjectId
+  condition     String
+  type          ConditionType
+  severity      Severity?
+  diagnosedDate DateTime?
+  notes         String?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("medical_conditions")
+}
+
+model FamilyHistory {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  tenantId   String   @db.ObjectId
+  relation   String
+  condition  String
+  ageOfOnset Int?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("family_history")
+}
+
+model Treatment {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String        @db.ObjectId
+  tenantId     String        @db.ObjectId
+  name         String
+  type         TreatmentType
+  startDate    DateTime?
+  endDate      DateTime?
+  prescribedBy String?
+  notes        String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("treatments")
+}
+
+model LifestyleProfile {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @unique @db.ObjectId
+  tenantId      String   @db.ObjectId
+  smoking       String?
+  alcohol       String?
+  sleepHours    Float?
+  stressLevel   Int?
+  occupation    String?
+  activityLevel String?
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("lifestyle_profiles")
+}
+
+// ==================== BODY COMPOSITION ====================
+
+model BodyComposition {
+  id                     String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId                 String     @db.ObjectId
+  tenantId               String     @db.ObjectId
+  date                   DateTime
+  height                 Float?
+  weight                 Float?
+  bmi                    Float?
+  bodyFat                Float?
+  visceralFat            Float?
+  subcutaneousFat        Float?
+  muscleMass             Float?
+  boneMass               Float?
+  bodyWater              Float?
+  bmr                    Float?
+  metabolicAge           Int?
+  waist                  Float?
+  hip                    Float?
+  chest                  Float?
+  bloodPressureSystolic  Int?
+  bloodPressureDiastolic Int?
+  heartRate              Int?
+  spo2                   Float?
+  source                 DataSource @default(MANUAL)
+  rawOcrText             String?
+  sourceImageUrl         String?
+  createdAt              DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([tenantId])
+  @@map("body_compositions")
+}
+
+// ==================== LAB REPORTS ====================
+
+model LabReport {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String     @db.ObjectId
+  tenantId   String     @db.ObjectId
+  reportDate DateTime
+  labName    String?
+  reportType String?
+  fileUrl    String?
+  source     DataSource @default(MANUAL)
+  verified   Boolean    @default(false)
+  rawOcrText String?
+  createdAt  DateTime   @default(now())
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  results LabTestResult[]
+
+  @@index([userId, reportDate])
+  @@index([tenantId])
+  @@map("lab_reports")
+}
+
+model LabTestResult {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  reportId     String     @db.ObjectId
+  tenantId     String     @db.ObjectId
+  testName     String
+  category     String?
+  value        Float
+  unit         String?
+  referenceMin Float?
+  referenceMax Float?
+  status       TestStatus @default(NORMAL)
+  notes        String?
+
+  report LabReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([testName])
+  @@index([tenantId])
+  @@map("lab_test_results")
+}
+
+// ==================== AI & CHAT ====================
+
+model AiChatSession {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  tenantId    String   @db.ObjectId
+  title       String?
+  summary     String?
+  actionItems Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiChatMessage[]
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("ai_chat_sessions")
+}
+
+model AiChatMessage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String   @db.ObjectId
+  tenantId  String   @db.ObjectId
+  role      ChatRole
+  content   String
+  citations Json?
+  createdAt DateTime @default(now())
+
+  session AiChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("ai_chat_messages")
+}
+
+model AiInsight {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  tenantId   String   @db.ObjectId
+  type       String
+  content    String
+  dataPoints Json?
+  priority   Int      @default(0)
+  isPinned   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("ai_insights")
+}
+
+model HealthIncident {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String           @db.ObjectId
+  tenantId    String           @db.ObjectId
+  description String
+  severity    IncidentSeverity
+  aiResponse  String?
+  actions     Json?
+  createdAt   DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("health_incidents")
+}
+
+// ==================== HEALTH CHART & PLANS ====================
+
+model DietPlan {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String    @db.ObjectId
+  tenantId       String    @db.ObjectId
+  preferences    Json?
+  targetCalories Int?
+  macroSplit     Json?
+  meals          Json?
+  startDate      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("diet_plans")
+}
+
+model SupplementPlan {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  tenantId          String   @db.ObjectId
+  supplements       Json?
+  ayurvedicRemedies Json?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("supplement_plans")
+}
+
+model HydrationPlan {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  tenantId    String   @db.ObjectId
+  dailyTarget Int?
+  schedule    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("hydration_plans")
+}
+
+model DailyChart {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String   @db.ObjectId
+  tenantId String   @db.ObjectId
+  date     DateTime
+  schedule Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([tenantId])
+  @@map("daily_charts")
+}
+
+// ==================== EXERCISE ====================
+
+model ExercisePlan {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @db.ObjectId
+  tenantId       String   @db.ObjectId
+  goal           String?
+  weeklySchedule Json?
+  equipmentLevel String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("exercise_plans")
+}
+
+model ExerciseLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  tenantId     String   @db.ObjectId
+  date         DateTime
+  exerciseType String
+  duration     Int?
+  intensity    String?
+  heartRateAvg Int?
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([tenantId])
+  @@map("exercise_logs")
+}
+
+// ==================== PROGRESS & INVENTORY ====================
+
+model DailyChecklist {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String   @db.ObjectId
+  tenantId String   @db.ObjectId
+  date     DateTime
+  items    Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([tenantId])
+  @@map("daily_checklists")
+}
+
+model ProgressStreak {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String    @unique @db.ObjectId
+  tenantId          String    @db.ObjectId
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
+  lastCompletedDate DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("progress_streaks")
+}
+
+model InventoryItem {
+  id                   String            @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String            @db.ObjectId
+  tenantId             String            @db.ObjectId
+  name                 String
+  type                 InventoryItemType
+  quantity             Float             @default(0)
+  unit                 String?
+  dailyDosage          Float?
+  reorderThresholdDays Int?
+  expiryDate           DateTime?
+  costPerUnit          Float?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs InventoryLog[]
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("inventory_items")
+}
+
+model InventoryLog {
+  id       String          @id @default(auto()) @map("_id") @db.ObjectId
+  itemId   String          @db.ObjectId
+  tenantId String          @db.ObjectId
+  action   InventoryAction
+  quantity Float
+  date     DateTime        @default(now())
+
+  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([tenantId])
+  @@map("inventory_logs")
+}
+
+// ==================== SLEEP & WELLNESS ====================
+
+model SleepLog {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @db.ObjectId
+  tenantId  String    @db.ObjectId
+  date      DateTime
+  bedtime   DateTime?
+  wakeTime  DateTime?
+  duration  Float?
+  quality   Int?
+  notes     String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([tenantId])
+  @@map("sleep_logs")
+}
+
+model MoodLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  tenantId    String   @db.ObjectId
+  date        DateTime
+  mood        Int?
+  energy      Int?
+  stressLevel Int?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([tenantId])
+  @@map("mood_logs")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model NotificationPreference {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String              @db.ObjectId
+  tenantId        String              @db.ObjectId
+  channel         NotificationChannel
+  enabled         Boolean             @default(true)
+  quietHoursStart String?
+  quietHoursEnd   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+  @@index([tenantId])
+  @@map("notification_preferences")
+}
+
+model ScheduledReminder {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String    @db.ObjectId
+  tenantId       String    @db.ObjectId
+  type           String
+  title          String
+  message        String?
+  cronExpression String
+  isActive       Boolean   @default(true)
+  lastSentAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("scheduled_reminders")
+}
+
+// ==================== JOURNEY TRACKER ====================
+
+model JourneyTracker {
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String         @db.ObjectId
+  tenantId  String         @db.ObjectId
+  name      String
+  type      String         @default("custom")
+  cadence   TrackerCadence @default(DAILY)
+  startDate DateTime
+  endDate   DateTime?
+  status    TrackerStatus  @default(DRAFT)
+  baseline  Json?
+  targets   Json?
+  settings  Json?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fields  TrackerField[]
+  entries TrackerEntry[]
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("journey_trackers")
+}
+
+model TrackerField {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  trackerId     String           @db.ObjectId
+  tenantId      String           @db.ObjectId
+  key           String
+  label         String
+  type          TrackerFieldType
+  unit          String?
+  options       Json?
+  target        Json?
+  required      Boolean          @default(false)
+  chartable     Boolean          @default(false)
+  scoringWeight Float?
+  sortOrder     Int              @default(0)
+  isActive      Boolean          @default(true)
+
+  tracker JourneyTracker @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+
+  @@unique([trackerId, key])
+  @@index([tenantId])
+  @@map("tracker_fields")
+}
+
+model TrackerEntry {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  trackerId      String    @db.ObjectId
+  tenantId       String    @db.ObjectId
+  date           DateTime
+  values         Json
+  remark         String?
+  sourceMetadata Json?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tracker JourneyTracker @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+
+  @@unique([trackerId, date])
+  @@index([tenantId])
+  @@map("tracker_entries")
+}

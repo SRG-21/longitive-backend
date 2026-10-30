@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: longevity-mongo
+    command: ['--replSet', 'rs0']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      # Prisma's MongoDB connector requires replica-set mode (even single-node) for
+      # transactions/nested writes. This initiates rs0 on first boot, once mongod is
+      # actually accepting connections — a plain `command`-based one-shot init runs too
+      # early and races the server startup, so it's folded into the healthcheck instead.
+      test: >
+        echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}) }"
+        | mongosh --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # Only used in pro mode (APP_MODE=pro) — Bull queues + Redis-backed rate limiting.
+  # Not required for eco mode (Vercel serverless).
+  redis:
+    image: redis:7-alpine
+    container_name: longevity-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo_data:
+  redis_data:
