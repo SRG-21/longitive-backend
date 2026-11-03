@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildWeightLossTemplate } from './templates/weight-loss.template';
 import { CreateTrackerDto, UpdateTrackerDto, CreateFieldDto, UpdateFieldDto, ReorderFieldsDto } from './dto';
@@ -119,20 +124,36 @@ export class JourneyTrackerService {
 
   async addField(userId: string, trackerId: string, dto: CreateFieldDto) {
     await this.assertOwned(userId, trackerId);
+    const data = {
+      label: dto.label,
+      type: dto.type as any,
+      unit: dto.unit,
+      options: dto.options,
+      target: dto.target,
+      required: dto.required ?? false,
+      chartable: dto.chartable ?? false,
+      scoringWeight: dto.scoringWeight,
+      sortOrder: dto.sortOrder ?? 0,
+    };
+
+    // Removing a field only deactivates it (entries keep their values under its key), so
+    // the (trackerId, key) unique index still holds that key. Re-adding it restores the
+    // field — and its history — instead of failing on the duplicate key.
+    const existing = await this.prisma.trackerField.findFirst({
+      where: { trackerId, key: dto.key },
+    });
+    if (existing) {
+      if (existing.isActive) {
+        throw new ConflictException(`This tracker already has a field with key "${dto.key}"`);
+      }
+      return this.prisma.trackerField.update({
+        where: { id: existing.id },
+        data: { ...data, isActive: true },
+      });
+    }
+
     return this.prisma.trackerField.create({
-      data: {
-        trackerId,
-        key: dto.key,
-        label: dto.label,
-        type: dto.type as any,
-        unit: dto.unit,
-        options: dto.options,
-        target: dto.target,
-        required: dto.required ?? false,
-        chartable: dto.chartable ?? false,
-        scoringWeight: dto.scoringWeight,
-        sortOrder: dto.sortOrder ?? 0,
-      } as any,
+      data: { trackerId, key: dto.key, ...data } as any,
     });
   }
 
