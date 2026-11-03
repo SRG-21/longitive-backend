@@ -188,6 +188,7 @@ model User {
   notificationPrefs NotificationPreference[]
   reminders         ScheduledReminder[]
   journeyTrackers   JourneyTracker[]
+  telegramLink      TelegramLink?
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -756,4 +757,46 @@ model TrackerEntry {
   @@unique([trackerId, date])
   @@index([tenantId])
   @@map("tracker_entries")
+}
+
+// ==================== TELEGRAM ====================
+
+// A user's Telegram chat for logging reminders. Created when they ask to connect (holding a
+// one-time link token), and linked once they press Start on the bot with that token.
+model TelegramLink {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String    @unique @db.ObjectId
+  tenantId           String    @db.ObjectId
+  chatId             String?
+  username           String?
+  // Not @unique: MongoDB unique indexes treat every null as the same value.
+  linkToken          String?
+  linkTokenExpiresAt DateTime?
+  // null means on (the default), so only an explicit opt-out is stored.
+  dailyReminder      Boolean?
+  missedDayAlert     Boolean?
+  linkedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([linkToken])
+  @@index([chatId])
+  @@map("telegram_links")
+}
+
+// One row per alert sent, so a retried or duplicated cron run never messages a user twice.
+model TelegramAlertLog {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String   @db.ObjectId
+  tenantId String   @db.ObjectId
+  kind     String // "daily" | "missed"
+  day      String // YYYY-MM-DD in the reminder timezone
+  sentAt   DateTime @default(now())
+
+  @@unique([userId, kind, day])
+  @@index([tenantId])
+  @@map("telegram_alert_logs")
 }

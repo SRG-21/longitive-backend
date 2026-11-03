@@ -1,3 +1,18 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/telegram/cron/daily-reminder",
+      "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/v1/telegram/cron/missed-day",
+      "schedule": "0 18 * * *"
+    }
+  ]
 }
