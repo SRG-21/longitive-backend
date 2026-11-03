@@ -2,7 +2,7 @@ import { Controller, Get, Put, Param, Body, Query, UseGuards, Res } from '@nestj
 import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { TrackerEntryService } from './tracker-entry.service';
-import { UpsertEntryDto, EntryQueryDto } from './dto';
+import { UpsertEntryDto, EntryQueryDto, TodayQueryDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards';
 import { CurrentUser } from '../../common/decorators';
 
@@ -26,7 +26,11 @@ export class TrackerEntryController {
   }
 
   @Get('entries')
-  list(@CurrentUser('id') userId: string, @Param('trackerId') trackerId: string, @Query() query: EntryQueryDto) {
+  list(
+    @CurrentUser('id') userId: string,
+    @Param('trackerId') trackerId: string,
+    @Query() query: EntryQueryDto,
+  ) {
     return this.service.list(userId, trackerId, query.from, query.to);
   }
 
@@ -55,7 +59,20 @@ export class TrackerEntryController {
   }
 
   @Get('weekly-review')
-  getWeeklyReview(@CurrentUser('id') userId: string, @Param('trackerId') trackerId: string) {
-    return this.service.getWeeklyReview(userId, trackerId);
+  getWeeklyReview(
+    @CurrentUser('id') userId: string,
+    @Param('trackerId') trackerId: string,
+    @Query() query: TodayQueryDto,
+  ) {
+    return this.service.getWeeklyReview(userId, trackerId, query.today);
+  }
+
+  @Get('logging-status')
+  getLoggingStatus(
+    @CurrentUser('id') userId: string,
+    @Param('trackerId') trackerId: string,
+    @Query() query: TodayQueryDto,
+  ) {
+    return this.service.getLoggingStatus(userId, trackerId, query.today);
   }
 }

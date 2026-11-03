@@ -99,6 +99,13 @@ enum TrackerCadence {
   CUSTOM
 }
 
+// How often a single tracker field is logged: every day (daily check-in) or once a week
+// (weekly review). Optional on TrackerField so documents created before it existed read as daily.
+enum FieldCadence {
+  DAILY
+  WEEKLY
+}
+
 enum TrackerFieldType {
   CHECKBOX
   NUMBER
@@ -721,6 +728,7 @@ model TrackerField {
   required      Boolean          @default(false)
   chartable     Boolean          @default(false)
   scoringWeight Float?
+  cadence       FieldCadence?
   sortOrder     Int              @default(0)
   isActive      Boolean          @default(true)
 

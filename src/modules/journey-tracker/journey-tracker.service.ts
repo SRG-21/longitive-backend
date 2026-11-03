@@ -6,7 +6,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildWeightLossTemplate } from './templates/weight-loss.template';
-import { CreateTrackerDto, UpdateTrackerDto, CreateFieldDto, UpdateFieldDto, ReorderFieldsDto } from './dto';
+import {
+  CreateTrackerDto,
+  UpdateTrackerDto,
+  CreateFieldDto,
+  UpdateFieldDto,
+  ReorderFieldsDto,
+} from './dto';
+import { dayOf } from './tracker-dates';
 
 @Injectable()
 export class JourneyTrackerService {
@@ -34,8 +41,15 @@ export class JourneyTrackerService {
     return tracker;
   }
 
+  private assertDateOrder(startDate: Date | string, endDate?: Date | string | null) {
+    if (endDate && dayOf(endDate) < dayOf(startDate)) {
+      throw new BadRequestException("The end date can't be before the start date");
+    }
+  }
+
   async create(userId: string, dto: CreateTrackerDto) {
     const { fields, ...trackerData } = dto;
+    this.assertDateOrder(trackerData.startDate, trackerData.endDate);
     const tracker = await this.prisma.journeyTracker.create({
       data: {
         userId,
@@ -64,6 +78,7 @@ export class JourneyTrackerService {
           required: f.required ?? false,
           chartable: f.chartable ?? false,
           scoringWeight: f.scoringWeight,
+          cadence: (f.cadence as any) ?? 'DAILY',
           sortOrder: f.sortOrder ?? idx,
         })) as any,
       });
@@ -73,13 +88,33 @@ export class JourneyTrackerService {
   }
 
   async update(userId: string, id: string, dto: UpdateTrackerDto) {
-    await this.assertOwned(userId, id);
+    const tracker = await this.assertOwned(userId, id);
+
+    const startDate = dto.startDate ?? tracker.startDate;
+    const endDate = dto.endDate === undefined ? tracker.endDate : dto.endDate;
+    this.assertDateOrder(startDate, endDate);
+
+    // Moving the start later than something already logged would strand that entry before
+    // the journey begins (and the daily page no longer lets you open dates before the start).
+    if (dto.startDate != null) {
+      const earliest = await this.prisma.trackerEntry.findFirst({
+        where: { trackerId: id },
+        orderBy: { date: 'asc' },
+      });
+      if (earliest && dayOf(earliest.date) < dayOf(dto.startDate)) {
+        throw new BadRequestException(
+          `You already have entries from ${dayOf(earliest.date)}, so the start date can't be later than that`,
+        );
+      }
+    }
+
     return this.prisma.journeyTracker.update({
       where: { id },
       data: {
         ...(dto.name != null && { name: dto.name }),
         ...(dto.startDate != null && { startDate: new Date(dto.startDate) }),
-        ...(dto.endDate != null && { endDate: new Date(dto.endDate) }),
+        // null clears the end date; undefined leaves it alone.
+        ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
         ...(dto.baseline != null && { baseline: dto.baseline }),
         ...(dto.targets != null && { targets: dto.targets }),
         ...(dto.settings != null && { settings: dto.settings }),
@@ -90,7 +125,10 @@ export class JourneyTrackerService {
 
   async archive(userId: string, id: string) {
     await this.assertOwned(userId, id);
-    return this.prisma.journeyTracker.update({ where: { id }, data: { status: 'ARCHIVED' } as any });
+    return this.prisma.journeyTracker.update({
+      where: { id },
+      data: { status: 'ARCHIVED' } as any,
+    });
   }
 
   async activate(userId: string, id: string) {
@@ -133,6 +171,7 @@ export class JourneyTrackerService {
       required: dto.required ?? false,
       chartable: dto.chartable ?? false,
       scoringWeight: dto.scoringWeight,
+      cadence: (dto.cadence as any) ?? 'DAILY',
       sortOrder: dto.sortOrder ?? 0,
     };
 

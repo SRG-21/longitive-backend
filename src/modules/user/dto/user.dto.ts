@@ -55,6 +55,7 @@ export class UpdateLifestyleDto {
 export class UpdateGoalsDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() targetWeightKg?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() targetBodyFatPercent?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() targetWaistCm?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() targetSleepHours?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() targetDailySteps?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() targetWaterIntakeMl?: number;

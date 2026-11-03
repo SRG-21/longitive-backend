@@ -10,3 +10,12 @@ export class EntryQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsDateString() from?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() to?: string;
 }
+
+export class TodayQueryDto {
+  @ApiPropertyOptional({
+    description: "The caller's local calendar day, YYYY-MM-DD (defaults to the server's UTC day)",
+  })
+  @IsOptional()
+  @IsString()
+  today?: string;
+}
