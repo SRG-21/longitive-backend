@@ -140,7 +140,9 @@ export class TrackerEntryService {
       orderBy: { date: 'asc' },
     });
 
-    const chartableFields = tracker.fields.filter((f) => f.chartable && f.isActive);
+    const chartableFields = tracker.fields
+      .filter((f) => f.chartable && f.isActive)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
     const baseline = (tracker.baseline as any) || {};
 
     const weights = entries.map(

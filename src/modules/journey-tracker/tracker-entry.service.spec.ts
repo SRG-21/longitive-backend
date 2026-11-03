@@ -140,6 +140,28 @@ describe('TrackerEntryService', () => {
     });
   });
 
+  describe('getChartData', () => {
+    it('lists charted fields in the order they are set up, skipping inactive and unticked ones', async () => {
+      tracker.fields = [
+        field('waist', 'WEEKLY', { sortOrder: 2 }),
+        field('steps', 'DAILY', { sortOrder: 1 }),
+        field('mood', 'DAILY', { sortOrder: 0, chartable: false }),
+        field('old', 'DAILY', { sortOrder: 3, isActive: false }),
+      ];
+      const chart = await service.getChartData('u1', 't1');
+      expect(chart.series.map((s) => s.key)).toEqual(['steps', 'waist']);
+      expect(chart.series.map((s) => s.cadence)).toEqual(['DAILY', 'WEEKLY']);
+    });
+
+    it('computes a "<key>Change" formula from the baseline and leaves gaps as null', async () => {
+      tracker.fields = [field('weightChange', null, { type: 'FORMULA', sortOrder: 0 })];
+      entries.push({ date: day('2026-11-02'), values: { weight: 88 }, remark: null });
+      entries.push({ date: day('2026-11-03'), values: { steps: 10 }, remark: null });
+      const chart = await service.getChartData('u1', 't1');
+      expect(chart.series[0].values).toEqual([-2, null]);
+    });
+  });
+
   describe('getWeeklyReview', () => {
     it('reports missed days only from the start date, not a fixed 7', async () => {
       const review = await service.getWeeklyReview('u1', 't1', '2026-11-03');
