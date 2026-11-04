@@ -2,31 +2,7 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MistralOcrService } from '../ocr/mistral-ocr.service';
 import { CreateBodyCompositionDto } from './dto';
-import { toInt, toNumber } from '../ocr/ocr-values';
-
-// Int columns in the schema; OCR may read them as decimals ("72.0"), so they're rounded.
-const INT_FIELDS = [
-  'metabolicAge',
-  'bloodPressureSystolic',
-  'bloodPressureDiastolic',
-  'heartRate',
-] as const;
-const FLOAT_FIELDS = [
-  'height',
-  'weight',
-  'bmi',
-  'bodyFat',
-  'visceralFat',
-  'subcutaneousFat',
-  'muscleMass',
-  'boneMass',
-  'bodyWater',
-  'bmr',
-  'waist',
-  'hip',
-  'chest',
-  'spo2',
-] as const;
+import { normalizeBodyCompAnnotation } from './body-composition-ocr';
 
 @Injectable()
 export class BodyCompositionService {
@@ -47,12 +23,8 @@ export class BodyCompositionService {
     if (existing) return { ...existing, alreadyUploaded: true };
 
     const run = await this.ocrService.processBodyComposition(buffer, contentType, file);
-    const raw = (run.annotation ?? {}) as Record<string, unknown>;
-    const values = Object.fromEntries(
-      [
-        ...FLOAT_FIELDS.map((k) => [k, toNumber(raw[k])] as const),
-        ...INT_FIELDS.map((k) => [k, toInt(raw[k])] as const),
-      ].filter(([, v]) => v != null),
+    const { values, day, measuredTime } = normalizeBodyCompAnnotation(
+      (run.annotation ?? {}) as Record<string, unknown>,
     );
     if (!Object.keys(values).length) {
       throw new UnprocessableEntityException(
@@ -63,7 +35,9 @@ export class BodyCompositionService {
     const measurement = await this.prisma.bodyComposition.create({
       data: {
         userId,
-        date: new Date(),
+        // The day printed on the report (stored at midnight UTC like manual entries), else today.
+        date: new Date(`${day ?? new Date().toISOString().slice(0, 10)}T00:00:00.000Z`),
+        ...(measuredTime && { measuredTime }),
         ...values,
         source: 'OCR',
         rawOcrText: run.rawText,
@@ -110,7 +84,14 @@ export class BodyCompositionService {
 
     const latest = records[records.length - 1];
     const previous = records[records.length - 2];
-    const metrics = ['weight', 'bmi', 'bodyFat', 'muscleMass', 'visceralFat'] as const;
+    const metrics = [
+      'weight',
+      'bmi',
+      'bodyFat',
+      'muscleMass',
+      'skeletalMuscleMass',
+      'visceralFat',
+    ] as const;
     const trends: Record<string, { change: number; direction: string }> = {};
 
     for (const metric of metrics) {

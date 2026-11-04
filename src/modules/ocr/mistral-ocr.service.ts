@@ -10,18 +10,47 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { STORAGE_SERVICE, StorageService } from '../../common/services';
 
+export interface BodySegmentExtraction {
+  mass: number | null;
+  percent: number | null;
+}
+
+export type BodySegmentsExtraction = Partial<
+  Record<'leftArm' | 'rightArm' | 'trunk' | 'leftLeg' | 'rightLeg', BodySegmentExtraction | null>
+>;
+
 export interface BodyCompExtraction {
+  reportDate: string | null;
+  reportTime: string | null;
+  reportName: string | null;
+  age: number | null;
+  bodyScore: number | null;
   height: number | null;
   weight: number | null;
   bmi: number | null;
   bodyFat: number | null;
+  fatMass: number | null;
   visceralFat: number | null;
   subcutaneousFat: number | null;
+  subcutaneousFatMass: number | null;
   muscleMass: number | null;
+  skeletalMuscleMass: number | null;
   boneMass: number | null;
   bodyWater: number | null;
+  bodyWaterMass: number | null;
+  proteinMass: number | null;
+  mineralMass: number | null;
   bmr: number | null;
   metabolicAge: number | null;
+  standardWeight: number | null;
+  weightControl: number | null;
+  fatControl: number | null;
+  muscleControl: number | null;
+  bodyType: string | null;
+  segmentalFat: BodySegmentsExtraction | null;
+  segmentalMuscle: BodySegmentsExtraction | null;
+  deviceName: string | null;
+  deviceId: string | null;
   waist: number | null;
   hip: number | null;
   chest: number | null;
@@ -72,34 +101,90 @@ interface Annotation {
 }
 
 // Bump a version when its schema or prompt changes meaning (stored as ocrSchemaVersion).
+const num = (description?: string) => ({
+  type: ['number', 'null'],
+  ...(description && { description }),
+});
+const int = (description?: string) => ({
+  type: ['integer', 'null'],
+  ...(description && { description }),
+});
+const str = (description?: string) => ({
+  type: ['string', 'null'],
+  ...(description && { description }),
+});
+const SEGMENT = {
+  type: ['object', 'null'],
+  properties: {
+    mass: num('kg'),
+    percent: num('The percentage printed under the kg value (% of standard), without the % sign'),
+  },
+};
+const SEGMENTS = (what: string) => ({
+  type: ['object', 'null'],
+  description: `${what}, per body segment. L = left, R = right, B = body/trunk.`,
+  properties: {
+    leftArm: SEGMENT,
+    rightArm: SEGMENT,
+    trunk: SEGMENT,
+    leftLeg: SEGMENT,
+    rightLeg: SEGMENT,
+  },
+});
+
 const BODY_COMP_ANNOTATION: Annotation = {
   name: 'body_composition_extraction',
-  version: 1,
+  version: 2,
   schema: {
     type: 'object',
     properties: {
-      height: { type: ['number', 'null'], description: 'Height in cm' },
-      weight: { type: ['number', 'null'], description: 'Weight in kg' },
-      bmi: { type: ['number', 'null'] },
-      bodyFat: { type: ['number', 'null'], description: 'Body fat percentage' },
-      visceralFat: { type: ['number', 'null'] },
-      subcutaneousFat: { type: ['number', 'null'], description: 'Subcutaneous fat percentage' },
-      muscleMass: { type: ['number', 'null'], description: 'Muscle mass in kg' },
-      boneMass: { type: ['number', 'null'], description: 'Bone mass in kg' },
-      bodyWater: { type: ['number', 'null'], description: 'Body water percentage' },
-      bmr: { type: ['number', 'null'], description: 'Basal metabolic rate in kcal' },
-      metabolicAge: { type: ['integer', 'null'] },
-      waist: { type: ['number', 'null'], description: 'Waist circumference in cm' },
-      hip: { type: ['number', 'null'], description: 'Hip circumference in cm' },
-      chest: { type: ['number', 'null'], description: 'Chest circumference in cm' },
-      bloodPressureSystolic: { type: ['integer', 'null'] },
-      bloodPressureDiastolic: { type: ['integer', 'null'] },
-      heartRate: { type: ['integer', 'null'], description: 'Heart rate in bpm' },
-      spo2: { type: ['number', 'null'], description: 'Blood oxygen saturation percentage' },
+      reportDate: str(
+        'Measurement date as YYYY-MM-DD. Dates printed as DD-MM-YYYY (e.g. 03-11-2026 = 3 November 2026) must be converted.',
+      ),
+      reportTime: str('Measurement time as HH:MM:SS (24-hour), if printed'),
+      reportName: str('The person/profile name printed on the report'),
+      age: int('Age in years printed on the report'),
+      bodyScore: int('Overall body score / points'),
+      height: num('Height in cm'),
+      weight: num('Total weight in kg'),
+      bmi: num(),
+      bodyFat: num('Body fat PERCENTAGE — only if a % is printed, not the fat mass in kg'),
+      fatMass: num('Fat mass in kg'),
+      visceralFat: num('Visceral fat level/rating (the number, whatever unit is printed)'),
+      subcutaneousFat: num('Subcutaneous fat PERCENTAGE — only if a % is printed'),
+      subcutaneousFatMass: num('Subcutaneous fat mass in kg'),
+      muscleMass: num('Total muscle mass in kg (not skeletal muscle mass)'),
+      skeletalMuscleMass: num('Skeletal muscle mass in kg'),
+      boneMass: num('Bone mass in kg'),
+      bodyWater: num('Body water PERCENTAGE — only if a % is printed'),
+      bodyWaterMass: num('Total body water in kg'),
+      proteinMass: num('Protein mass in kg'),
+      mineralMass: num('Mineral mass in kg'),
+      bmr: num('Basal metabolic rate in kcal'),
+      metabolicAge: int('Metabolic age, also printed as "body age"'),
+      standardWeight: num('Standard / ideal weight in kg'),
+      weightControl: num('Weight control in kg, keeping the sign (negative = lose)'),
+      fatControl: num('Fat control in kg, keeping the sign'),
+      muscleControl: num('Muscle control in kg, keeping the sign'),
+      bodyType: str(
+        'The body type that is highlighted/selected on the report (e.g. "Overweight muscular"), not the whole grid',
+      ),
+      segmentalFat: SEGMENTS('Segmental fat analysis'),
+      segmentalMuscle: SEGMENTS('Muscle balance / segmental lean analysis'),
+      deviceName: str('Scale / device model name, e.g. "Cult Smart Scale Pro"'),
+      deviceId: str('Device id or MAC address printed on the report'),
+      waist: num('Waist circumference in cm'),
+      hip: num('Hip circumference in cm'),
+      chest: num('Chest circumference in cm'),
+      bloodPressureSystolic: int(),
+      bloodPressureDiastolic: int(),
+      heartRate: int('Heart rate in bpm'),
+      spo2: num('Blood oxygen saturation percentage'),
     },
   },
   prompt:
-    'Extract every body composition metric visible on this scale/body-analyzer printout or screenshot, exactly as printed. ' +
+    'Extract every body composition value on this smart-scale / body-analyzer report or screenshot (for example a Cult Smart Scale ' +
+    '"Measurement Report"), exactly as printed. Keep kg values and percentages in their own fields — never convert one into the other. ' +
     'Use null for any field not present on the document — do not guess, estimate, or infer a value that is not directly shown.',
 };
 

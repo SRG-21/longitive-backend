@@ -4,9 +4,13 @@
 export function toNumber(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value !== 'string') return null;
-  const cleaned = value.replace(/,/g, '').trim();
-  if (!/^[-+]?\d*\.?\d+$/.test(cleaned)) return null;
-  const parsed = Number(cleaned);
+  // A trailing unit as printed ("12.0kg", "1737.0 kcal", "300.0%") is dropped.
+  const match = value
+    .replace(/,/g, '')
+    .trim()
+    .match(/^([-+]?\d*\.?\d+)\s*(?:[a-zA-Z%µ/]+)?$/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
   return Number.isFinite(parsed) ? parsed : null;
 }
 

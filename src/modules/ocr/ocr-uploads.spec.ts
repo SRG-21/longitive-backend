@@ -19,6 +19,11 @@ describe('ocr values', () => {
   it('keeps real numbers only', () => {
     expect(toNumber(5.2)).toBe(5.2);
     expect(toNumber('1,250')).toBe(1250);
+    expect(toNumber('12.0kg')).toBe(12);
+    expect(toNumber('1737.0 kcal')).toBe(1737);
+    expect(toNumber('300.0%')).toBe(300);
+    expect(toNumber('-21.7kg')).toBe(-21.7);
+    expect(toNumber('12 to 14')).toBeNull();
     expect(toNumber(' 13.5 ')).toBe(13.5);
     expect(toNumber('n/a')).toBeNull();
     expect(toNumber('')).toBeNull();

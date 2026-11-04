@@ -310,6 +310,26 @@ model BodyComposition {
   bloodPressureDiastolic Int?
   heartRate              Int?
   spo2                   Float?
+  // Full body-analyzer reports (e.g. Cult Smart Scale): masses in kg.
+  measuredTime           String? // "HH:MM:SS" as printed on the report
+  age                    Int? // age printed on the report at the time of measurement
+  bodyScore              Int?
+  fatMass                Float?
+  bodyWaterMass          Float?
+  proteinMass            Float?
+  mineralMass            Float?
+  subcutaneousFatMass    Float?
+  skeletalMuscleMass     Float?
+  standardWeight         Float?
+  weightControl          Float? // kg to gain (+) or lose (-) to reach the standard weight
+  fatControl             Float?
+  muscleControl          Float?
+  bodyType               String? // e.g. "Overweight muscular"
+  segmentalFat           BodySegments?
+  segmentalMuscle        BodySegments?
+  deviceName             String?
+  deviceId               String?
+  reportName             String? // the profile name printed on the report
   source                 DataSource @default(MANUAL)
   rawOcrText             String?
   sourceImageUrl         String?
@@ -329,6 +349,20 @@ model BodyComposition {
   @@index([userId, fileSha256])
   @@index([tenantId])
   @@map("body_compositions")
+}
+
+/// Per-limb values from a segmental analysis: mass in kg and % of the standard for that segment.
+type BodySegment {
+  mass    Float?
+  percent Float?
+}
+
+type BodySegments {
+  leftArm  BodySegment?
+  rightArm BodySegment?
+  trunk    BodySegment?
+  leftLeg  BodySegment?
+  rightLeg BodySegment?
 }
 
 // ==================== LAB REPORTS ====================
