@@ -14,7 +14,7 @@ import { BodyCompositionService } from './body-composition.service';
 import { CreateBodyCompositionDto, BodyCompQueryDto, CompareDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards';
 import { CurrentUser } from '../../common/decorators';
-import { ocrUploadInterceptorOptions } from '../../common/config/upload.config';
+import { ocrUploadInterceptorOptions, requireUpload } from '../../common/config/upload.config';
 
 @ApiTags('Body Composition')
 @Controller('body-composition')
@@ -32,7 +32,8 @@ export class BodyCompositionController {
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', ocrUploadInterceptorOptions))
   processOcr(@CurrentUser('id') userId: string, @UploadedFile() file: Express.Multer.File) {
-    return this.service.createFromOcrUpload(userId, file.buffer, file.originalname, file.mimetype);
+    const upload = requireUpload(file);
+    return this.service.createFromOcrUpload(userId, upload.buffer, upload.mimetype);
   }
 
   @Get()

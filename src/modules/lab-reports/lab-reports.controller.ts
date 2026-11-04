@@ -16,7 +16,7 @@ import { LabReportsService } from './lab-reports.service';
 import { CreateLabReportDto, LabReportQueryDto, SpreadsheetQueryDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards';
 import { CurrentUser } from '../../common/decorators';
-import { ocrUploadInterceptorOptions } from '../../common/config/upload.config';
+import { ocrUploadInterceptorOptions, requireUpload } from '../../common/config/upload.config';
 
 @ApiTags('Lab Reports')
 @Controller('lab-reports')
@@ -34,14 +34,16 @@ export class LabReportsController {
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', ocrUploadInterceptorOptions))
   processOcr(@CurrentUser('id') userId: string, @UploadedFile() file: Express.Multer.File) {
-    return this.service.processMistralOcr(userId, file.buffer, file.originalname, file.mimetype);
+    const upload = requireUpload(file);
+    return this.service.processMistralOcr(userId, upload.buffer, upload.mimetype);
   }
 
   @Post('pdf')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', ocrUploadInterceptorOptions))
   processPdf(@CurrentUser('id') userId: string, @UploadedFile() file: Express.Multer.File) {
-    return this.service.processMistralOcr(userId, file.buffer, file.originalname, file.mimetype);
+    const upload = requireUpload(file);
+    return this.service.processMistralOcr(userId, upload.buffer, upload.mimetype);
   }
 
   @Get()
@@ -58,6 +60,12 @@ export class LabReportsController {
   @Get('trends/:testName')
   getTrends(@CurrentUser('id') userId: string, @Param('testName') testName: string) {
     return this.service.getTrends(userId, testName);
+  }
+
+  /** A short-lived link to the scanned original (the file itself stays private). */
+  @Get(':id/file')
+  getFile(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.service.getFileUrl(userId, id);
   }
 
   @Get(':id')

@@ -313,11 +313,20 @@ model BodyComposition {
   source                 DataSource @default(MANUAL)
   rawOcrText             String?
   sourceImageUrl         String?
+  // Mistral OCR bookkeeping (scanned measurements only); see LabReport.
+  fileKey                String?
+  fileSha256             String?
+  ocrModel               String?
+  ocrPages               Int?
+  ocrMs                  Int?
+  ocrCostUsd             Float?
+  ocrSchemaVersion       Int?
   createdAt              DateTime   @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+  @@index([userId, fileSha256])
   @@index([tenantId])
   @@map("body_compositions")
 }
@@ -325,22 +334,32 @@ model BodyComposition {
 // ==================== LAB REPORTS ====================
 
 model LabReport {
-  id         String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String     @db.ObjectId
-  tenantId   String     @db.ObjectId
-  reportDate DateTime
-  labName    String?
-  reportType String?
-  fileUrl    String?
-  source     DataSource @default(MANUAL)
-  verified   Boolean    @default(false)
-  rawOcrText String?
-  createdAt  DateTime   @default(now())
+  id               String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String     @db.ObjectId
+  tenantId         String     @db.ObjectId
+  reportDate       DateTime
+  labName          String?
+  reportType       String?
+  fileUrl          String?
+  source           DataSource @default(MANUAL)
+  verified         Boolean    @default(false)
+  rawOcrText       String?
+  // Mistral OCR bookkeeping (scanned reports only). fileKey is the private S3 key, served
+  // through short-lived presigned links; fileSha256 recognises a re-upload of the same file.
+  fileKey          String?
+  fileSha256       String?
+  ocrModel         String?
+  ocrPages         Int?
+  ocrMs            Int?
+  ocrCostUsd       Float?
+  ocrSchemaVersion Int?
+  createdAt        DateTime   @default(now())
 
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   results LabTestResult[]
 
   @@index([userId, reportDate])
+  @@index([userId, fileSha256])
   @@index([tenantId])
   @@map("lab_reports")
 }
@@ -708,7 +727,7 @@ model JourneyTracker {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   fields  TrackerField[]
   entries TrackerEntry[]
   reviews JourneyReview[]

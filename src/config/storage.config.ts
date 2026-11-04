@@ -6,5 +6,7 @@ export default registerAs('storage', () => ({
     bucket: process.env.AWS_S3_BUCKET || '',
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    // Optional: an S3-compatible endpoint (MinIO, LocalStack…). Leave empty for AWS.
+    endpoint: process.env.AWS_S3_ENDPOINT || '',
   },
 }));

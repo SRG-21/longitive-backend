@@ -2,6 +2,31 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MistralOcrService } from '../ocr/mistral-ocr.service';
 import { CreateBodyCompositionDto } from './dto';
+import { toInt, toNumber } from '../ocr/ocr-values';
+
+// Int columns in the schema; OCR may read them as decimals ("72.0"), so they're rounded.
+const INT_FIELDS = [
+  'metabolicAge',
+  'bloodPressureSystolic',
+  'bloodPressureDiastolic',
+  'heartRate',
+] as const;
+const FLOAT_FIELDS = [
+  'height',
+  'weight',
+  'bmi',
+  'bodyFat',
+  'visceralFat',
+  'subcutaneousFat',
+  'muscleMass',
+  'boneMass',
+  'bodyWater',
+  'bmr',
+  'waist',
+  'hip',
+  'chest',
+  'spo2',
+] as const;
 
 @Injectable()
 export class BodyCompositionService {
@@ -10,35 +35,53 @@ export class BodyCompositionService {
     private ocrService: MistralOcrService,
   ) {}
 
-  async createFromOcrUpload(userId: string, buffer: Buffer, filename: string, contentType: string) {
-    const extraction = await this.ocrService.processBodyComposition(buffer, filename, contentType);
-    if (!extraction.data) {
-      throw new UnprocessableEntityException('Could not extract body composition data from this file');
+  /**
+   * Scans a body-analyzer printout or screenshot with Mistral OCR and saves the measurement.
+   * Uploading the same file again returns the existing measurement instead of scanning again.
+   */
+  async createFromOcrUpload(userId: string, buffer: Buffer, contentType: string) {
+    const file = this.ocrService.describeFile(buffer, contentType, 'body-composition', userId);
+    const existing = await this.prisma.bodyComposition.findFirst({
+      where: { userId, fileSha256: file.fileSha256 },
+    });
+    if (existing) return { ...existing, alreadyUploaded: true };
+
+    const run = await this.ocrService.processBodyComposition(buffer, contentType, file);
+    const raw = (run.annotation ?? {}) as Record<string, unknown>;
+    const values = Object.fromEntries(
+      [
+        ...FLOAT_FIELDS.map((k) => [k, toNumber(raw[k])] as const),
+        ...INT_FIELDS.map((k) => [k, toInt(raw[k])] as const),
+      ].filter(([, v]) => v != null),
+    );
+    if (!Object.keys(values).length) {
+      throw new UnprocessableEntityException(
+        'Could not find any body composition values in this file',
+      );
     }
-    return this.createFromOcr(userId, {
-      ...extraction.data,
-      rawOcrText: extraction.rawText,
-      sourceImageUrl: extraction.sourceUrl,
-    } as any);
+
+    const measurement = await this.prisma.bodyComposition.create({
+      data: {
+        userId,
+        date: new Date(),
+        ...values,
+        source: 'OCR',
+        rawOcrText: run.rawText,
+        fileKey: run.fileKey,
+        fileSha256: run.fileSha256,
+        ocrModel: run.model,
+        ocrPages: run.pageCount,
+        ocrMs: run.elapsedMs,
+        ocrCostUsd: run.costUsd,
+        ocrSchemaVersion: run.schemaVersion,
+      } as any,
+    });
+    return { ...measurement, alreadyUploaded: false };
   }
 
   async create(userId: string, dto: CreateBodyCompositionDto) {
     return this.prisma.bodyComposition.create({
       data: { userId, ...dto, date: new Date(dto.date) } as any,
-    });
-  }
-
-  async createFromOcr(
-    userId: string,
-    data: Partial<CreateBodyCompositionDto> & { rawOcrText: string },
-  ) {
-    return this.prisma.bodyComposition.create({
-      data: {
-        userId,
-        date: data.date ? new Date(data.date) : new Date(),
-        ...data,
-        source: 'OCR',
-      } as any,
     });
   }
 

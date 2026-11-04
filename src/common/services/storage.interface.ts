@@ -6,7 +6,14 @@ export interface UploadResult {
 }
 
 export interface StorageService {
-  upload(buffer: Buffer, filename: string, folder?: string, contentType?: string): Promise<UploadResult>;
+  upload(
+    buffer: Buffer,
+    filename: string,
+    folder?: string,
+    contentType?: string,
+  ): Promise<UploadResult>;
+  /** Writes the object at exactly `key` (for content-addressed storage); overwrites an existing one. */
+  putObject(key: string, buffer: Buffer, contentType?: string): Promise<UploadResult>;
   getFile(key: string): Promise<Buffer | null>;
   delete(key: string): Promise<void>;
   getPublicUrl(key: string): string;

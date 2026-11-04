@@ -21,8 +21,11 @@ export class S3StorageService implements StorageService {
     this.region = this.configService.get<string>('storage.s3.region')!;
     this.bucket = this.configService.get<string>('storage.s3.bucket')!;
 
+    const endpoint = this.configService.get<string>('storage.s3.endpoint') || undefined;
     this.client = new S3Client({
       region: this.region,
+      // S3-compatible stores generally need path-style URLs (http://host/bucket/key).
+      ...(endpoint && { endpoint, forcePathStyle: true }),
       credentials: {
         accessKeyId: this.configService.get<string>('storage.s3.accessKeyId')!,
         secretAccessKey: this.configService.get<string>('storage.s3.secretAccessKey')!,
@@ -36,8 +39,14 @@ export class S3StorageService implements StorageService {
     folder = 'general',
     contentType = 'application/octet-stream',
   ): Promise<UploadResult> {
-    const key = `${folder}/${Date.now()}-${filename}`;
+    return this.putObject(`${folder}/${Date.now()}-${filename}`, buffer, contentType);
+  }
 
+  async putObject(
+    key: string,
+    buffer: Buffer,
+    contentType = 'application/octet-stream',
+  ): Promise<UploadResult> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MistralOcrService } from '../ocr/mistral-ocr.service';
 import { CreateLabReportDto, LabReportQueryDto } from './dto';
 import { tenantContext } from '../../common/context/tenant-context';
+import { statusFromRange, toDay, toNumber, toText } from '../ocr/ocr-values';
 
 @Injectable()
 export class LabReportsService {
@@ -45,39 +46,74 @@ export class LabReportsService {
     });
   }
 
-  // Mistral OCR handles both images and PDFs the same way (both go through `document_url`),
-  // so /lab-reports/ocr and /lab-reports/pdf share this single implementation.
-  async processMistralOcr(userId: string, buffer: Buffer, filename: string, contentType: string) {
-    const extraction = await this.ocrService.processLabReport(buffer, filename, contentType);
-    if (!extraction.data || extraction.data.results.length === 0) {
-      throw new UnprocessableEntityException('Could not extract lab results from this file');
-    }
-    const tenantId = this.currentTenantId;
-    const results = extraction.data.results.map((r) => ({
-      tenantId,
-      testName: r.testName,
-      value: r.value,
-      unit: r.unit ?? undefined,
-      referenceMin: r.referenceMin ?? undefined,
-      referenceMax: r.referenceMax ?? undefined,
-      category: r.category ?? undefined,
-      status: 'NORMAL' as const,
-    }));
+  /**
+   * Scans a lab report (photo or PDF) with Mistral OCR and saves its results, unverified, for
+   * the user to review. Uploading the same file again returns the existing report instead of
+   * paying for another OCR call.
+   */
+  async processMistralOcr(userId: string, buffer: Buffer, contentType: string) {
+    const file = this.ocrService.describeFile(buffer, contentType, 'lab-reports', userId);
+    const existing = await this.prisma.labReport.findFirst({
+      where: { userId, fileSha256: file.fileSha256 },
+      include: { results: true },
+    });
+    if (existing) return { ...existing, alreadyUploaded: true };
 
-    return this.prisma.labReport.create({
+    const run = await this.ocrService.processLabReport(buffer, contentType, file);
+    const tenantId = this.currentTenantId;
+    const results = (run.annotation?.results ?? []).flatMap((r) => {
+      const testName = toText(r?.testName);
+      const value = toNumber(r?.value);
+      if (!testName || value == null) return [];
+      const referenceMin = toNumber(r.referenceMin);
+      const referenceMax = toNumber(r.referenceMax);
+      return [
+        {
+          tenantId,
+          testName,
+          value,
+          unit: toText(r.unit) ?? undefined,
+          referenceMin: referenceMin ?? undefined,
+          referenceMax: referenceMax ?? undefined,
+          category: toText(r.category) ?? undefined,
+          status: statusFromRange(value, referenceMin, referenceMax),
+        },
+      ];
+    });
+    if (!results.length) {
+      throw new UnprocessableEntityException('Could not find any lab results in this file');
+    }
+
+    const reportDay = toDay(run.annotation?.reportDate);
+    const report = await this.prisma.labReport.create({
       data: {
         userId,
-        reportDate: extraction.data.reportDate ? new Date(extraction.data.reportDate) : new Date(),
-        labName: extraction.data.labName ?? undefined,
+        reportDate: reportDay ? new Date(reportDay) : new Date(),
+        labName: toText(run.annotation?.labName) ?? undefined,
         reportType: 'ocr-extracted',
-        fileUrl: extraction.sourceUrl,
         source: 'OCR',
-        rawOcrText: extraction.rawText,
+        rawOcrText: run.rawText,
         verified: false,
+        fileKey: run.fileKey,
+        fileSha256: run.fileSha256,
+        ocrModel: run.model,
+        ocrPages: run.pageCount,
+        ocrMs: run.elapsedMs,
+        ocrCostUsd: run.costUsd,
+        ocrSchemaVersion: run.schemaVersion,
         results: { create: results },
       } as any,
       include: { results: true },
     });
+    return { ...report, alreadyUploaded: false };
+  }
+
+  /** A short-lived link to the uploaded original, for its owner only. */
+  async getFileUrl(userId: string, id: string) {
+    const report = await this.findOne(userId, id);
+    if (report.fileKey) return { url: await this.ocrService.presignedUrl(report.fileKey) };
+    if (report.fileUrl) return { url: report.fileUrl }; // reports scanned before files were private
+    throw new NotFoundException('This report has no uploaded file');
   }
 
   async findAll(userId: string, query: LabReportQueryDto) {

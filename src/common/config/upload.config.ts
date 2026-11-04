@@ -22,3 +22,10 @@ export const ocrUploadInterceptorOptions: MulterOptions = {
     callback(null, true);
   },
 };
+
+/** The uploaded file, or a 400 when the request had none (multipart field "file"). */
+export function requireUpload(file: Express.Multer.File | undefined) {
+  if (!file?.buffer?.length)
+    throw new BadRequestException('Attach the document as the "file" field');
+  return file;
+}
