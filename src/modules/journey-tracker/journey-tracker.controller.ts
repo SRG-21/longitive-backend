@@ -43,7 +43,14 @@ export class JourneyTrackerController {
     return this.service.update(userId, id, dto);
   }
 
+  /** Permanently deletes the tracker with its fields and every logged entry. */
   @Delete(':id')
+  remove(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.service.remove(userId, id);
+  }
+
+  /** Hides the tracker but keeps all of its data. */
+  @Post(':id/archive')
   archive(@CurrentUser('id') userId: string, @Param('id') id: string) {
     return this.service.archive(userId, id);
   }

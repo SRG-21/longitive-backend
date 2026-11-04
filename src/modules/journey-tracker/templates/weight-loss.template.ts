@@ -25,9 +25,10 @@ export function buildWeightLossTemplate(inputs: TemplateInputs) {
   if (inputs.latestBodyComp?.waist != null) baseline.waist = inputs.latestBodyComp.waist;
   if (inputs.latestBodyComp?.bodyFat != null) baseline.bodyFatPct = inputs.latestBodyComp.bodyFat;
 
-  // The user's profile goals (PATCH /users/me/goals) become the tracker's targets, keyed by
-  // the template's field keys. The first name in each pair is what the profile page writes;
-  // the second is the older spelling kept so existing goal documents still resolve.
+  // The user's body-measurement goals (PATCH /users/me/goals) become the tracker's targets,
+  // keyed by the template's field keys. Habits like steps or sleep are logged, not targeted.
+  // The first name in each pair is what the profile page writes; the second is the older
+  // spelling kept so existing goal documents still resolve.
   const targets: Record<string, number> = {};
   const goalFor = (...names: string[]) => {
     for (const name of names) {
@@ -39,9 +40,6 @@ export function buildWeightLossTemplate(inputs: TemplateInputs) {
     weight: goalFor('targetWeightKg', 'targetWeight'),
     waist: goalFor('targetWaistCm', 'targetWaist'),
     bodyFatPct: goalFor('targetBodyFatPercent', 'targetBodyFatPct'),
-    steps: goalFor('targetDailySteps'),
-    sleep: goalFor('targetSleepHours'),
-    water: goalFor('targetWaterIntakeMl'),
   };
   for (const [key, value] of Object.entries(goalTargets)) {
     if (value != null) targets[key] = value;
