@@ -1,0 +1,9 @@
+{
+  // Jest transpiles test files one by one instead of type-checking them: type-checking the
+  // Anthropic SDK's and zod's large type graphs in every Jest worker exhausts the heap.
+  // Types are still checked by `tsc` / `nest build`, which compile the specs too.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "isolatedModules": true
+  }
+}

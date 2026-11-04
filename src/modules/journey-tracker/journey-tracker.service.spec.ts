@@ -18,17 +18,18 @@ describe('JourneyTrackerService.remove', () => {
       },
       trackerEntry: { deleteMany: jest.fn(async () => (calls.push('entries'), { count: 12 })) },
       trackerField: { deleteMany: jest.fn(async () => (calls.push('fields'), { count: 7 })) },
+      journeyReview: { deleteMany: jest.fn(async () => (calls.push('reviews'), { count: 2 })) },
     };
     service = new JourneyTrackerService(prisma);
   });
 
-  it("deletes the tracker's entries and fields, then the tracker", async () => {
+  it("deletes the tracker's entries, fields and reviews, then the tracker", async () => {
     await expect(service.remove('u1', 't1')).resolves.toEqual({
       deleted: true,
       entries: 12,
       fields: 7,
     });
-    expect(calls).toEqual(['entries', 'fields', 'tracker']);
+    expect(calls).toEqual(['entries', 'fields', 'reviews', 'tracker']);
     expect(prisma.trackerEntry.deleteMany).toHaveBeenCalledWith({ where: { trackerId: 't1' } });
   });
 

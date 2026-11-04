@@ -84,7 +84,12 @@ describe('TelegramLinkService', () => {
   it('reports alerts as on until the user turns them off', async () => {
     link.chatId = '555';
     const status = await service.getStatus('u1');
-    expect(status).toMatchObject({ linked: true, dailyReminder: true, missedDayAlert: true });
+    expect(status).toMatchObject({
+      linked: true,
+      dailyReminder: true,
+      missedDayAlert: true,
+      weeklyReview: true,
+    });
     expect(status.schedule).toEqual({
       dailyReminder: '15:00',
       missedDayAlert: '23:30',

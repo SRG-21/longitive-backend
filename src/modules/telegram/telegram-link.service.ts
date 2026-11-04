@@ -43,6 +43,7 @@ export class TelegramLinkService {
       linkPending: pending && !link?.chatId,
       dailyReminder: link?.dailyReminder !== false,
       missedDayAlert: link?.missedDayAlert !== false,
+      weeklyReview: link?.weeklyReview !== false,
       schedule: {
         dailyReminder: DAILY_REMINDER_TIME,
         missedDayAlert: MISSED_DAY_ALERT_TIME,
@@ -75,7 +76,7 @@ export class TelegramLinkService {
 
   async updatePreferences(
     userId: string,
-    dto: { dailyReminder?: boolean; missedDayAlert?: boolean },
+    dto: { dailyReminder?: boolean; missedDayAlert?: boolean; weeklyReview?: boolean },
   ) {
     const link = await this.prisma.telegramLink.findUnique({ where: { userId } });
     if (!link?.chatId) throw new NotFoundException('Connect Telegram first');
@@ -84,6 +85,7 @@ export class TelegramLinkService {
       data: {
         ...(dto.dailyReminder !== undefined && { dailyReminder: dto.dailyReminder }),
         ...(dto.missedDayAlert !== undefined && { missedDayAlert: dto.missedDayAlert }),
+        ...(dto.weeklyReview !== undefined && { weeklyReview: dto.weeklyReview }),
       },
     });
     return this.getStatus(userId);

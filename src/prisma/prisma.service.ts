@@ -36,6 +36,9 @@ const TENANT_SCOPED_MODELS = new Set<Prisma.ModelName>([
   'TrackerEntry',
   'TelegramLink',
   'TelegramAlertLog',
+  'JourneyReview',
+  'OAuthAuthorizationCode',
+  'OAuthGrant',
 ]);
 
 /** Every model delegate name (tenant-scoped or not) that must resolve against the extended client. */
@@ -73,6 +76,10 @@ const ALL_MODEL_DELEGATES = [
   'trackerEntry',
   'telegramLink',
   'telegramAlertLog',
+  'journeyReview',
+  'oAuthClient',
+  'oAuthAuthorizationCode',
+  'oAuthGrant',
 ] as const;
 
 const WHERE_FILTER_OPERATIONS = new Set([

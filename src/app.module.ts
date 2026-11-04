@@ -27,6 +27,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { JourneyTrackerModule } from './modules/journey-tracker/journey-tracker.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
+import { ClaudeModule } from './modules/claude/claude.module';
+import { McpModule } from './modules/mcp/mcp.module';
 import { AppController } from './app.controller';
 
 // eco = Vercel serverless (no Redis, no long-lived process for Bull to run in).
@@ -75,6 +77,8 @@ const isProMode = process.env.APP_MODE === 'pro';
     AnalyticsModule,
     JourneyTrackerModule,
     TelegramModule,
+    ClaudeModule,
+    McpModule,
   ],
   controllers: [AppController],
   providers: [

@@ -129,6 +129,7 @@ export class JourneyTrackerService {
     // the delete can simply be retried.
     const entries = await this.prisma.trackerEntry.deleteMany({ where: { trackerId: id } });
     const fields = await this.prisma.trackerField.deleteMany({ where: { trackerId: id } });
+    await this.prisma.journeyReview.deleteMany({ where: { trackerId: id } });
     await this.prisma.journeyTracker.delete({ where: { id } });
     return { deleted: true, entries: entries.count, fields: fields.count };
   }

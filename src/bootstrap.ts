@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression = require('compression');
@@ -15,7 +15,10 @@ export function configureApp(app: INestApplication): void {
     credentials: true,
   });
 
-  app.setGlobalPrefix('api/v1');
+  // OAuth/MCP discovery documents must live at the site root (RFC 8414 / RFC 9728).
+  app.setGlobalPrefix('api/v1', {
+    exclude: [{ path: '.well-known/(.*)', method: RequestMethod.GET }],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

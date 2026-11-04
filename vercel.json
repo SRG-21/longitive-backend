@@ -13,6 +13,10 @@
     {
       "path": "/api/v1/telegram/cron/missed-day",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/v1/journey-reviews/cron/weekly",
+      "schedule": "15 18 * * *"
     }
   ]
 }

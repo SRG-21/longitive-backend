@@ -11,4 +11,9 @@ export class UpdateTelegramPreferencesDto {
   @IsOptional()
   @IsBoolean()
   missedDayAlert?: boolean;
+
+  @ApiPropertyOptional({ description: "Claude's weekly journey review" })
+  @IsOptional()
+  @IsBoolean()
+  weeklyReview?: boolean;
 }

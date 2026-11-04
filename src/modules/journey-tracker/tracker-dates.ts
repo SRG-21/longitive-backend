@@ -35,3 +35,14 @@ export function eachDay(from: string, to: string): string[] {
   for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
   return days;
 }
+
+/** The calendar day (YYYY-MM-DD) that `date` falls on in `timeZone`. */
+export function dayInZone(date: Date, timeZone: string): string {
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}

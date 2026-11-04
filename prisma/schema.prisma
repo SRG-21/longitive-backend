@@ -189,6 +189,7 @@ model User {
   reminders         ScheduledReminder[]
   journeyTrackers   JourneyTracker[]
   telegramLink      TelegramLink?
+  oauthGrants       OAuthGrant[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -710,6 +711,7 @@ model JourneyTracker {
   user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   fields  TrackerField[]
   entries TrackerEntry[]
+  reviews JourneyReview[]
 
   @@index([userId])
   @@index([tenantId])
@@ -775,6 +777,7 @@ model TelegramLink {
   // null means on (the default), so only an explicit opt-out is stored.
   dailyReminder      Boolean?
   missedDayAlert     Boolean?
+  weeklyReview       Boolean?
   linkedAt           DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -799,4 +802,91 @@ model TelegramAlertLog {
   @@unique([userId, kind, day])
   @@index([tenantId])
   @@map("telegram_alert_logs")
+}
+
+// ==================== CLAUDE JOURNEY REVIEWS ====================
+
+// A review of one stretch of a journey tracker, written by Claude (Anthropic API). Kept apart
+// from AiInsight, which the OpenAI-based insights feature owns.
+model JourneyReview {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  trackerId   String   @db.ObjectId
+  userId      String   @db.ObjectId
+  tenantId    String   @db.ObjectId
+  kind        String // "weekly" (scheduled, one per finished week) | "manual" (on request)
+  periodStart String // YYYY-MM-DD
+  periodEnd   String // YYYY-MM-DD
+  headline    String
+  summary     String
+  wins        String[]
+  concerns    String[]
+  suggestions Json // [{ title, detail, why }]
+  model       String
+  createdAt   DateTime @default(now())
+
+  tracker JourneyTracker @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+
+  @@index([trackerId, createdAt])
+  @@index([tenantId])
+  @@map("journey_reviews")
+}
+
+// ==================== OAUTH (MCP CONNECTOR) ====================
+
+// An app registered through OAuth dynamic client registration (RFC 7591), e.g. Claude.
+// Global, not tenant-scoped: a client is the same app for every user who connects it.
+model OAuthClient {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  clientId                String   @unique
+  clientSecretHash        String?
+  clientName              String
+  redirectUris            String[]
+  tokenEndpointAuthMethod String // "none" | "client_secret_post" | "client_secret_basic"
+  createdAt               DateTime @default(now())
+
+  @@map("oauth_clients")
+}
+
+// A one-time authorization code from the consent screen (only its SHA-256 is stored).
+model OAuthAuthorizationCode {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  codeHash      String    @unique
+  clientId      String
+  userId        String    @db.ObjectId
+  tenantId      String    @db.ObjectId
+  redirectUri   String
+  codeChallenge String
+  scope         String
+  resource      String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("oauth_authorization_codes")
+}
+
+// One app's access to one user's data: the current access/refresh token pair (hashed),
+// rotated on every refresh. Revoking it disconnects the app.
+model OAuthGrant {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String    @db.ObjectId
+  tenantId         String    @db.ObjectId
+  clientId         String
+  clientName       String
+  scope            String
+  resource         String?
+  accessTokenHash  String    @unique
+  accessExpiresAt  DateTime
+  refreshTokenHash String    @unique
+  refreshExpiresAt DateTime
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("oauth_grants")
 }
